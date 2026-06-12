@@ -23,12 +23,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationError(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
-                .findFirst()
-                .orElse("Validation failed");
+        log.warn("Validation error: {}", e.getBindingResult().getFieldErrors());
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(message));
+                .body(new ErrorResponse("Invalid request"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

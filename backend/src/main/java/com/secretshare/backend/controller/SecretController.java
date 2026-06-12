@@ -7,6 +7,7 @@ import com.secretshare.backend.service.SecretService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -20,7 +21,7 @@ public class SecretController {
 
     private final SecretService secretService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SecretSummaryResponse> createSecret(
             @Valid @RequestBody CreateSecretRequest request,
             UriComponentsBuilder uriBuilder) {

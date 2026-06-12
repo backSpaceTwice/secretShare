@@ -113,7 +113,7 @@ export default function CreateSecret() {
         />
       </label>
 
-      {error && <p className="error">{error}</p>}
+      {error && <div className="error-banner"><p>{error}</p></div>}
 
       <button type="submit" disabled={loading}>
         {loading ? 'Creating...' : 'Create Secret'}

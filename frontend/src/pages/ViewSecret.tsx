@@ -26,7 +26,7 @@ export default function ViewSecret() {
 
   if (state.status === 'confirm') {
     return (
-      <div className="confirm-box">
+      <>
         <h1>You have been sent a secret</h1>
         <p>
           Viewing this secret will count as one use. Once all uses are consumed
@@ -36,27 +36,23 @@ export default function ViewSecret() {
         <div className="confirm-actions">
           <button onClick={handleReveal}>Reveal Secret</button>
         </div>
-      </div>
+      </>
     )
   }
 
   if (state.status === 'loading') {
-    return (
-      <div className="confirm-box">
-        <p>Retrieving secret…</p>
-      </div>
-    )
+    return <p className="loading-state">Retrieving secret…</p>
   }
 
   if (state.status === 'expired') {
     return (
-      <div className="confirm-box">
+      <>
         <h1>Secret not found</h1>
         <p>
           This secret may have expired, been viewed its maximum number of times,
           or never existed.
         </p>
-      </div>
+      </>
     )
   }
 

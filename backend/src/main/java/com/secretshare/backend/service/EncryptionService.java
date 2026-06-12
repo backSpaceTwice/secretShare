@@ -8,11 +8,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 
 @Service
@@ -32,25 +32,22 @@ public class EncryptionService {
     @PostConstruct
     void init() {
         if (encryptionKeyBase64 == null || encryptionKeyBase64.isBlank()) {
-            log.warn("ENCRYPTION_KEY not set — generating ephemeral AES-256 key. Secrets will be lost on restart.");
-            try {
-                KeyGenerator keyGen = KeyGenerator.getInstance("AES");
-                keyGen.init(KEY_SIZE);
-                key = keyGen.generateKey();
-            } catch (Exception e) {
-                throw new EncryptionException("Failed to generate ephemeral AES key", e);
+            throw new EncryptionException(
+                "ENCRYPTION_KEY is not set. Generate one with: openssl rand -base64 32");
+        }
+        byte[] decoded = null;
+        try {
+            decoded = Base64.getDecoder().decode(encryptionKeyBase64.trim());
+            if (decoded.length != 32) {
+                throw new EncryptionException(
+                    "Encryption key must decode to 32 bytes (256-bit), got " + decoded.length + " bytes");
             }
-        } else {
-            try {
-                byte[] decoded = Base64.getDecoder().decode(encryptionKeyBase64.trim());
-                if (decoded.length != 32) {
-                    throw new EncryptionException("Encryption key must decode to 32 bytes (256-bit), got " + decoded.length + " bytes");
-                }
-                key = new SecretKeySpec(decoded, "AES");
-                log.info("Encryption key loaded successfully");
-            } catch (IllegalArgumentException e) {
-                throw new EncryptionException("Encryption key is not valid Base64", e);
-            }
+            key = new SecretKeySpec(decoded, "AES");
+            log.info("Encryption key loaded successfully");
+        } catch (IllegalArgumentException e) {
+            throw new EncryptionException("Encryption key is not valid Base64", e);
+        } finally {
+            if (decoded != null) Arrays.fill(decoded, (byte) 0);
         }
     }
 

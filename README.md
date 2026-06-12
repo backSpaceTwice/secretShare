@@ -8,8 +8,7 @@ A self-hosted, one-time secret sharing app. Paste a secret, get a shareable link
 2. The backend encrypts the value with AES-256-GCM and stores it alongside a random UUID token.
 3. The sender shares the generated link with the recipient.
 4. When the recipient opens the link they see a confirmation page warning them that viewing will consume one use. They must click **Reveal Secret** to proceed.
-5. Once confirmed, the backend decrypts and returns the value, then decrements the use counter. Once uses reach zero or the TTL passes, the secret is gone.
-6. A nightly cleanup job (3 AM by default) purges expired secrets and consumed secrets older than 7 days.
+5. Once confirmed, the backend decrypts and returns the value, then decrements the use counter. Once uses reach zero the record is deleted immediately; if a TTL was set it is also purged by the nightly cleanup job.
 
 ## Tech stack
 
@@ -26,7 +25,7 @@ A self-hosted, one-time secret sharing app. Paste a secret, get a shareable link
 secretShare/
 ├── backend/          # Spring Boot application
 │   └── src/main/java/com/secretshare/backend/
-│       ├── config/       RateLimitInterceptor, WebConfig
+│       ├── config/       SecurityConfig, RateLimitInterceptor, WebConfig
 │       ├── controller/   SecretController.java
 │       ├── dto/          request/response objects
 │       ├── entity/       Secret.java (JPA entity)
@@ -63,6 +62,7 @@ CREATE DATABASE secretshare;
 | `USER` | Yes | PostgreSQL username |
 | `PASSWORD` | Yes | PostgreSQL password |
 | `ENCRYPTION_KEY` | **Required** | Base64-encoded 256-bit AES key. The app will not start without this. |
+| `ALLOWED_ORIGINS` | No | Comma-separated list of allowed CORS origins. Defaults to `http://localhost:5173`. Set to your frontend domain in production. |
 
 Generate a key:
 
@@ -104,7 +104,7 @@ Serve `frontend/dist/` as static files behind the same origin as the backend, or
 
 ```
 POST /api/secrets
-Content-Type: application/json
+Content-Type: application/json   (required — returns 415 if omitted)
 
 {
   "value":    "my secret text",
@@ -175,9 +175,35 @@ A fixed-window rate limiter (per client IP) protects both endpoints:
 
 Exceeded requests receive `429 Too Many Requests`.
 
+### HTTP security headers
+
+Every response includes the following headers via Spring Security:
+
+| Header | Value |
+|---|---|
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `Content-Security-Policy` | `default-src 'self'` |
+
+### CORS
+
+Cross-origin requests are restricted to the origins listed in `ALLOWED_ORIGINS`. Only `GET` and `POST` methods and the `Content-Type` header are permitted.
+
 ### Token design
 
 Each secret is identified by a randomly generated UUID v4 (122 bits of entropy). Tokens are not sequential and cannot be guessed without the rate limiter being defeated first.
+
+### Secret lifetime
+
+Once a secret's last use is consumed, the database record is deleted immediately — it does not linger. Expired secrets that still have uses remaining are purged by the nightly cleanup job.
+
+### Audit logging
+
+All secret access events are logged server-side using the first 8 characters of the token (enough to correlate events, not enough to replay a request):
+
+- Successful access: token prefix, uses remaining
+- Denied access: token prefix, reason (not found / expired / consumed)
 
 ## Configuration
 
@@ -187,4 +213,5 @@ All tunable properties live in `backend/src/main/resources/application.propertie
 |---|---|---|
 | `spring.datasource.url` | `jdbc:postgresql://localhost:5432/secretshare` | JDBC URL |
 | `app.encryption.key` | *(none — required)* | Base64 AES-256 key |
+| `app.cors.allowed-origins` | `http://localhost:5173` | Comma-separated allowed CORS origins |
 | `cleanup.cron` | `0 0 3 * * ?` | Cron expression for the nightly cleanup job |

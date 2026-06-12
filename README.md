@@ -9,7 +9,7 @@ A self-hosted, one-time secret sharing app. Paste a secret, get a shareable link
 3. The sender shares the generated link with the recipient.
 4. When the recipient opens the link they see a confirmation page warning them that viewing will consume one use. They must click **Reveal Secret** to proceed.
 5. Once confirmed, the backend decrypts and returns the value, then decrements the use counter. Once uses reach zero or the TTL passes, the secret is gone.
-5. A nightly cleanup job (3 AM by default) purges expired secrets and consumed secrets older than 7 days.
+6. A nightly cleanup job (3 AM by default) purges expired secrets and consumed secrets older than 7 days.
 
 ## Tech stack
 
@@ -26,6 +26,7 @@ A self-hosted, one-time secret sharing app. Paste a secret, get a shareable link
 secretShare/
 ├── backend/          # Spring Boot application
 │   └── src/main/java/com/secretshare/backend/
+│       ├── config/       RateLimitInterceptor, WebConfig
 │       ├── controller/   SecretController.java
 │       ├── dto/          request/response objects
 │       ├── entity/       Secret.java (JPA entity)
@@ -49,7 +50,7 @@ secretShare/
 
 ### 1. Database
 
-Create a database and user:
+Create a database:
 
 ```sql
 CREATE DATABASE secretshare;
@@ -61,7 +62,7 @@ CREATE DATABASE secretshare;
 |---|---|---|
 | `USER` | Yes | PostgreSQL username |
 | `PASSWORD` | Yes | PostgreSQL password |
-| `ENCRYPTION_KEY` | Recommended | Base64-encoded 256-bit AES key (32 raw bytes). If omitted, an ephemeral key is generated and **all secrets are lost on restart**. |
+| `ENCRYPTION_KEY` | **Required** | Base64-encoded 256-bit AES key. The app will not start without this. |
 
 Generate a key:
 
@@ -124,6 +125,8 @@ Content-Type: application/json
 }
 ```
 
+**Rate limit:** 10 requests per minute per IP. Exceeding this returns `429 Too Many Requests`.
+
 ### View a secret
 
 ```
@@ -141,6 +144,41 @@ GET /api/secrets/{token}
 
 **Response 404** — secret does not exist, has expired, or has no uses remaining.
 
+**Rate limit:** 30 requests per minute per IP.
+
+## Security
+
+### Encryption
+
+Secrets are encrypted with **AES-256-GCM** before being written to the database. A fresh 12-byte IV is generated for every encryption operation and prepended to the ciphertext. The authentication tag (128-bit) ensures ciphertext integrity. Plaintext is never persisted.
+
+### Encryption key
+
+The `ENCRYPTION_KEY` environment variable is **required** — the application will refuse to start without it. The decoded key bytes are zeroed from memory immediately after the `SecretKey` object is constructed.
+
+To generate a suitable key:
+
+```bash
+openssl rand -base64 32
+```
+
+Store this value in a secrets manager (AWS Secrets Manager, HashiCorp Vault, etc.) rather than in shell history or `.env` files.
+
+### Rate limiting
+
+A fixed-window rate limiter (per client IP) protects both endpoints:
+
+| Endpoint | Limit |
+|---|---|
+| `POST /api/secrets` | 10 requests / minute |
+| `GET /api/secrets/{token}` | 30 requests / minute |
+
+Exceeded requests receive `429 Too Many Requests`.
+
+### Token design
+
+Each secret is identified by a randomly generated UUID v4 (122 bits of entropy). Tokens are not sequential and cannot be guessed without the rate limiter being defeated first.
+
 ## Configuration
 
 All tunable properties live in `backend/src/main/resources/application.properties`:
@@ -148,5 +186,5 @@ All tunable properties live in `backend/src/main/resources/application.propertie
 | Property | Default | Description |
 |---|---|---|
 | `spring.datasource.url` | `jdbc:postgresql://localhost:5432/secretshare` | JDBC URL |
-| `app.encryption.key` | *(empty — ephemeral)* | Base64 AES-256 key |
+| `app.encryption.key` | *(none — required)* | Base64 AES-256 key |
 | `cleanup.cron` | `0 0 3 * * ?` | Cron expression for the nightly cleanup job |

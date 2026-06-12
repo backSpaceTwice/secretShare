@@ -11,6 +11,10 @@ export default function CreateSecret() {
   const [result, setResult] = useState<SecretSummaryResponse | null>(null)
   const [copied, setCopied] = useState(false)
 
+  const shareUrl = result
+    ? `${window.location.origin}/secrets/${result.token}`
+    : ''
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
@@ -27,9 +31,8 @@ export default function CreateSecret() {
   }
 
   async function copyLink() {
-    if (!result) return
     try {
-      await navigator.clipboard.writeText(result.shareUrl)
+      await navigator.clipboard.writeText(shareUrl)
       setCopied(true)
     } catch {
       setCopied(false)
@@ -52,7 +55,7 @@ export default function CreateSecret() {
         <p>Share this link with your recipient. It can only be opened once.</p>
 
         <div className="share-url">
-          <input type="text" readOnly value={result.shareUrl} />
+          <input type="text" readOnly value={shareUrl} />
           <button onClick={copyLink}>
             {copied ? 'Copied!' : 'Copy'}
           </button>

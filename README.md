@@ -7,7 +7,8 @@ A self-hosted, one-time secret sharing app. Paste a secret, get a shareable link
 1. A sender pastes their secret and configures a max-view count (1–100) and expiry window (1–8760 hours).
 2. The backend encrypts the value with AES-256-GCM and stores it alongside a random UUID token.
 3. The sender shares the generated link with the recipient.
-4. When the recipient opens the link, the backend decrypts and returns the value, then decrements the use counter. Once uses reach zero or the TTL passes, the secret is gone.
+4. When the recipient opens the link they see a confirmation page warning them that viewing will consume one use. They must click **Reveal Secret** to proceed.
+5. Once confirmed, the backend decrypts and returns the value, then decrements the use counter. Once uses reach zero or the TTL passes, the secret is gone.
 5. A nightly cleanup job (3 AM by default) purges expired secrets and consumed secrets older than 7 days.
 
 ## Tech stack

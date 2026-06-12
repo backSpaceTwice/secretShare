@@ -1,43 +1,74 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { viewSecret } from '../api'
 import type { SecretValueResponse } from '../api'
 
 type ViewState =
+  | { status: 'confirm' }
   | { status: 'loading' }
   | { status: 'found'; data: SecretValueResponse }
   | { status: 'expired' }
 
 export default function ViewSecret() {
   const { token } = useParams<{ token: string }>()
-  const [state, setState] = useState<ViewState>({ status: 'loading' })
+  const [state, setState] = useState<ViewState>({ status: 'confirm' })
 
-  useEffect(() => {
+  async function handleReveal() {
     if (!token) return
-    viewSecret(token).then(
-      data => setState({ status: 'found', data }),
-      () => setState({ status: 'expired' }),
+    setState({ status: 'loading' })
+    try {
+      const data = await viewSecret(token)
+      setState({ status: 'found', data })
+    } catch {
+      setState({ status: 'expired' })
+    }
+  }
+
+  if (state.status === 'confirm') {
+    return (
+      <div className="confirm-box">
+        <h1>You have been sent a secret</h1>
+        <p>
+          Viewing this secret will count as one use. Once all uses are consumed
+          the secret is permanently destroyed and cannot be recovered.
+        </p>
+        <p className="warn">Are you sure you want to reveal the secret now?</p>
+        <div className="confirm-actions">
+          <button onClick={handleReveal}>Reveal Secret</button>
+        </div>
+      </div>
     )
-  }, [token])
+  }
 
   if (state.status === 'loading') {
-    return <p>Loading...</p>
+    return (
+      <div className="confirm-box">
+        <p>Retrieving secret…</p>
+      </div>
+    )
   }
 
   if (state.status === 'expired') {
     return (
-      <div>
+      <div className="confirm-box">
         <h1>Secret not found</h1>
-        <p>This secret may have expired, been viewed its maximum number of times, or never existed.</p>
+        <p>
+          This secret may have expired, been viewed its maximum number of times,
+          or never existed.
+        </p>
       </div>
     )
   }
 
   return (
-    <div>
+    <div className="secret-page">
       <h1>Your Secret</h1>
+      <p className="meta">
+        {state.data.usesLeft === 0
+          ? 'This was the last use — the secret has now been destroyed.'
+          : `Remaining views after this: ${state.data.usesLeft}`}
+      </p>
       <div className="secret-value">{state.data.value}</div>
-      <p>Remaining views: {state.data.usesLeft}</p>
     </div>
   )
 }

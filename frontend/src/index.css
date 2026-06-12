@@ -95,3 +95,35 @@ button.secondary {
   word-break: break-all;
   margin: 16px 0;
 }
+
+.secret-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confirm-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 24px;
+  background: #fafafa;
+}
+
+.confirm-box h1 {
+  margin-bottom: 0;
+}
+
+.warn {
+  font-weight: 600;
+  color: #b45309;
+  margin: 0;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}

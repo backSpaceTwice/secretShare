@@ -13,32 +13,36 @@ cd frontend && npm run build  # production build
 ```
 
 - Java 21, Maven 3.9.15 (wrapper), Spring Boot 3.5.14
-- Frontend: React 18 + TypeScript + Vite + react-router-dom
+- Frontend: React 19 + TypeScript + Vite + react-router-dom
 - Lombok annotation processing configured in `maven-compiler-plugin` (not just `spring-boot-maven-plugin`)
 
 ## Architecture
 
 - Multi-module Maven: parent `pom.xml` + `backend` module
 - Entrypoint: `com.secretshare.backend.BackendApplication`
-- Stack: Spring Data JPA + Spring Web + PostgreSQL + Flyway (declared but **no migrations exist** — schema is managed via `spring.jpa.hibernate.ddl-auto=update`)
+- Stack: Spring Data JPA + Spring Web + PostgreSQL + Flyway; migrations live in `backend/src/main/resources/db/migration` and Hibernate validates the schema
 - DB connection: `jdbc:postgresql://localhost:5432/secretshare`, credentials from `$USER` / `$PASSWORD` env vars
 - Frontend proxies `/api` to `localhost:8080` via Vite dev server (no CORS needed)
 
 ## Setup
 
 1. Create the database: `createdb secretshare`
-2. If PostgreSQL uses `scram-sha-256` auth and `$PASSWORD` is unset, switch to `trust` in `pg_hba.conf` for local connections, then `brew services restart postgresql@18`
+2. Set `$USER`, `$PASSWORD`, and a Base64-encoded 32-byte `$ENCRYPTION_KEY`
 3. Start backend in terminal 1, frontend in terminal 2
 
 ## Database
 
 - Entity: `Secret` (table `secrets`) with fields `id` (UUID PK), `token` (UUID, unique), `encrypted_value` (TEXT), `uses_left` (int), `expires_at` (timestamptz), `created_at` (timestamptz)
-- Repository custom queries: `deleteExpiredSecrets(now)` and `deleteConsumedSecretsBefore(cutoff)` — both `@Modifying` DELETE, need to run in a transaction
+- Reveal lookup uses `PESSIMISTIC_WRITE` inside the service transaction so concurrent final-use requests serialize
+- Repository cleanup queries `deleteExpiredSecrets(now)` and `deleteConsumedSecretsBefore(cutoff)` are `@Modifying` DELETE operations and run in a transaction
 
 ## Known Issues
 
-- `spring.datasource.password=${PASSWORD}` — if `$PASSWORD` env var is unset, PostgreSQL must use `trust` auth for local connections or the backend won't start
+- The encryption key must remain stable while secrets exist; automatic key rotation is not implemented
+- Rate limiting is process-local; horizontally scaled deployments need a shared gateway or store
+- Trust `X-Forwarded-For` only by setting `TRUST_FORWARDED_HEADERS=true` behind a trusted proxy that overwrites it
 
 ## Test
 
-- Single `@SpringBootTest` context-loads test in `com.secretshare.backend` package — requires a running PostgreSQL to pass.
+- `./mvnw test -pl backend` is self-contained and does not require PostgreSQL.
+- Deployment CI should additionally run a PostgreSQL-backed smoke test for Flyway and row locking.

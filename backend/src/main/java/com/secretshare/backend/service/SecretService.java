@@ -49,7 +49,7 @@ public class SecretService {
 
     @Transactional
     public SecretValueResponse viewSecret(UUID token) {
-        Secret secret = secretRepository.findByToken(token)
+        Secret secret = secretRepository.findByTokenForUpdate(token)
                 .orElseThrow(() -> {
                     log.warn("Secret access denied — not found: token={}...", token.toString().substring(0, 8));
                     return new SecretNotFoundException();
